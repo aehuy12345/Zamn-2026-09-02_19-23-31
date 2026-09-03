@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b4e68bbb330b80a4384acfb184617cb2, type: 3}
   m_Name: SO_StatSlime
   m_EditorClassIdentifier: Assembly-CSharp::CharacterStatsData
-  maxHealth: 100
-  maxShield: 50
-  maxEnergy: 100
+  maxHealth: 30
+  maxShield: 0
+  maxEnergy: 0
   shieldRegenDelay: 3
   shieldRegenRate: 10
-  moveSpeed: 5
+  moveSpeed: 2
