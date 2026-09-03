@@ -1,41 +1,27 @@
 using UnityEngine;
 
-[RequireComponent(typeof(CharacterAnimationHandler))]
-public class EnemyAI : BaseCharacter
+public class EnemyAI : BaseEnemy
 {
     [Header("Configurations")]
     [SerializeField] private EnemyData enemyData;
-    [SerializeField] private Weapon rangedWeapon;
+    [SerializeField] private Weapon rangedWeapon; // Dùng riêng cho Boss nếu Boss dùng 2 vũ khí
 
-    private WeaponHandler weaponHandler;
-    private Transform playerTransform;
     private float lastContactTime;
-
-    protected override void Awake()
-    {
-        base.Awake(); // Đã tự động lấy animHandler từ BaseCharacter
-        weaponHandler = GetComponent<WeaponHandler>();
-    }
-
-    private void Start()
-    {
-        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-        if (playerObj != null) playerTransform = playerObj.transform;
-    }
 
     private void Update()
     {
         if (playerTransform == null || enemyData == null) return;
 
         float distanceToPlayer = Vector2.Distance(transform.position, playerTransform.position);
+        Vector2 directionToPlayer = (playerTransform.position - transform.position).normalized;
 
-        // Xoay hướng nếu có WeaponHandler
+        // Xoay vũ khí nhắm thẳng về phía Player
         if (weaponHandler != null)
         {
-            weaponHandler.AimAt(playerTransform.position);
+            weaponHandler.AimAtTargetOrDirection(directionToPlayer);
         }
 
-        // Xử lý Logic theo loại Quái
+        // Xử lý Logic AI theo từng loại Quái
         switch (enemyData.enemyType)
         {
             case EnemyType.ContactOnly:
@@ -58,27 +44,27 @@ public class EnemyAI : BaseCharacter
 
     #region AI Behaviors
 
-    // 1. LOẠI SLIME (Chạy đuổi -> Bật/Tắt Animation Move)
+    // 1. LOẠI SLIME (Chỉ bò đuổi và gây sát thương va chạm)
     private void HandleContactEnemyLogic(float distance)
     {
         if (distance <= enemyData.detectionRange)
         {
             MoveTowards(playerTransform.position);
-            animHandler?.PlayMove(true); // Bật animation Chạy
+            animHandler?.PlayMove(true);
         }
         else
         {
-            animHandler?.PlayMove(false); // Trả về Idle khi ngoài tầm
+            animHandler?.PlayMove(false);
         }
     }
 
-    // 2. LOẠI CẬN CHIẾN
+    // 2. LOẠI CẬN CHIẾN (Đuổi theo -> Đến tầm đánh thì dừng lại đánh)
     private void HandleMeleeEnemyLogic(float distance)
     {
         if (distance <= enemyData.attackRange)
         {
-            animHandler?.PlayMove(false); // Dừng lại để đánh
-            weaponHandler.TryAttack();
+            animHandler?.PlayMove(false);
+            if (weaponHandler != null) weaponHandler.TryAttack();
         }
         else if (distance <= enemyData.detectionRange)
         {
@@ -91,7 +77,7 @@ public class EnemyAI : BaseCharacter
         }
     }
 
-    // 3. LOẠI ĐÁNH XA
+    // 3. LOẠI ĐÁNH XA (Áp sát thì chạy lùi, dừng chạy mới bắn)
     private void HandleRangedEnemyLogic(float distance)
     {
         if (distance < enemyData.fleeRange)
@@ -101,8 +87,8 @@ public class EnemyAI : BaseCharacter
         }
         else if (distance <= enemyData.detectionRange)
         {
-            animHandler?.PlayMove(false); // Đứng yên bắn
-            weaponHandler.TryAttack();
+            animHandler?.PlayMove(false);
+            if (weaponHandler != null) weaponHandler.TryAttack();
         }
         else
         {
@@ -110,17 +96,17 @@ public class EnemyAI : BaseCharacter
         }
     }
 
-    // 4. LOẠI BOSS
+    // 4. LOẠI BOSS (Thay đổi linh hoạt cận chiến & đánh xa)
     private void HandleBossEnemyLogic(float distance)
     {
         if (distance <= enemyData.attackRange)
         {
             animHandler?.PlayMove(false);
-            weaponHandler.TryAttack();
+            if (weaponHandler != null) weaponHandler.TryAttack();
         }
         else if (distance <= enemyData.detectionRange)
         {
-            if (rangedWeapon != null)
+            if (rangedWeapon != null && weaponHandler != null)
             {
                 rangedWeapon.TryAttack(stats, weaponHandler.AttackPoint);
             }
@@ -139,13 +125,25 @@ public class EnemyAI : BaseCharacter
 
     private void MoveTowards(Vector3 target)
     {
-        transform.position = Vector2.MoveTowards(transform.position, target, moveSpeed * Time.deltaTime);
+        float speed = 2f;
+        if (stats != null && stats.StatsData != null)
+        {
+            speed = stats.StatsData.MoveSpeed;
+        }
+
+        transform.position = Vector2.MoveTowards(transform.position, target, speed * Time.deltaTime);
     }
 
     private void FleeFrom(Vector3 target)
     {
+        float speed = 2f;
+        if (stats != null && stats.StatsData != null)
+        {
+            speed = stats.StatsData.MoveSpeed;
+        }
+
         Vector3 fleeDirection = (transform.position - target).normalized;
-        transform.position += fleeDirection * moveSpeed * Time.deltaTime;
+        transform.position += fleeDirection * speed * Time.deltaTime;
     }
 
     #endregion

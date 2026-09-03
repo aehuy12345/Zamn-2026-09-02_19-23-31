@@ -1,11 +1,10 @@
 using UnityEngine;
 
-[RequireComponent(typeof(WeaponHandler))]
+[RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(CharacterStats))]
 public class BaseEnemy : BaseCharacter
 {
-    [Header("Enemy AI Settings")]
-    [SerializeField] private float attackRange = 2f;
-    
+    [Header("Base Enemy References")]
     protected WeaponHandler weaponHandler;
     protected Transform playerTransform;
 
@@ -17,27 +16,20 @@ public class BaseEnemy : BaseCharacter
 
     protected virtual void Start()
     {
-        // Tìm Player trong Scene
-        var player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
+        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+        if (playerObj != null)
         {
-            playerTransform = player.transform;
+            playerTransform = playerObj.transform;
         }
     }
 
-    protected virtual void Update()
+    // Hàm hỗ trợ xoay vũ khí về một vị trí chỉ định
+    public virtual void AimAtTarget(Vector3 targetPosition)
     {
-        if (playerTransform == null) return;
-
-        float distanceToPlayer = Vector2.Distance(transform.position, playerTransform.position);
-
-        // Nhắm về phía Player
-        weaponHandler.AimAt(playerTransform.position);
-
-        // Nếu Player đi vào tầm đánh -> Tiến hành tấn công
-        if (distanceToPlayer <= attackRange)
+        if (weaponHandler != null)
         {
-            weaponHandler.TryAttack();
+            Vector2 direction = (targetPosition - transform.position).normalized;
+            weaponHandler.AimAtTargetOrDirection(direction);
         }
     }
 }

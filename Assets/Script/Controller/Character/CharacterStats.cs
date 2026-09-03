@@ -19,7 +19,17 @@ public class CharacterStats : MonoBehaviour
     public event Action OnDeath;
 
     public CharacterStatsData StatsData => statsData;
+    public float CurrentHealth => currentHealth;
     public float CurrentEnergy => currentEnergy;
+
+    public float CurrentMoveSpeed 
+    {
+        get 
+        {
+            if (statsData != null) return statsData.MoveSpeed;
+            return 3f;
+        }
+    }
 
     private void Awake()
     {
@@ -56,10 +66,11 @@ public class CharacterStats : MonoBehaviour
 
     public void TakeDamage(float damageAmount)
     {
-        if (damageAmount <= 0) return;
+        if (damageAmount <= 0 || currentHealth <= 0) return;
 
         lastDamageTime = Time.time;
 
+        // 1. Trừ Giáp (Shield) trước
         if (currentShield > 0)
         {
             if (currentShield >= damageAmount)
@@ -75,17 +86,37 @@ public class CharacterStats : MonoBehaviour
             OnShieldChanged?.Invoke(currentShield, statsData.MaxShield);
         }
 
+        // 2. Trừ Máu (Health) nếu damage còn lại > 0
         if (damageAmount > 0)
         {
             currentHealth -= damageAmount;
             currentHealth = Mathf.Max(currentHealth, 0);
             OnHealthChanged?.Invoke(currentHealth, statsData.MaxHealth);
 
+            // 3. Xử lý khi hết máu
             if (currentHealth <= 0)
             {
-                OnDeath?.Invoke();
+                Die();
             }
         }
+    }
+
+    // [BỔ SUNG] Hàm Hồi Máu cho Player/Enemy
+    public void Heal(float healAmount)
+    {
+        if (statsData == null || currentHealth <= 0) return;
+
+        currentHealth = Mathf.Min(currentHealth + healAmount, statsData.MaxHealth);
+        OnHealthChanged?.Invoke(currentHealth, statsData.MaxHealth);
+    }
+
+    // [BỔ SUNG] Logic khi hết máu
+    private void Die()
+    {
+        OnDeath?.Invoke(); // Báo tín hiệu về RoomController để đếm số quái còn lại
+        
+        // Tiêu diệt GameObject
+        Destroy(gameObject);
     }
 
     private void HandleShieldRegen()
