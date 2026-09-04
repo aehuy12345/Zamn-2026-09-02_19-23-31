@@ -8,35 +8,47 @@ public class RoomController : MonoBehaviour
 
     [Header("Room Settings")]
     [SerializeField] private RoomType roomType = RoomType.CombatRoom;
-    [SerializeField] private GameObject doorTilemapGroup; // GameObject chứa Tilemap Cửa (Collider)
-    
+    [SerializeField] private GameObject doorTilemapGroup;
+
     [Header("Enemy Spawn Settings")]
-    [SerializeField] private List<Transform> spawnPoints;  // Danh sách các điểm Spawn quái
-    [SerializeField] private List<GameObject> enemyPrefabs; // Danh sách các Prefab Quái
-    [SerializeField] private int totalEnemiesToSpawn = 5;   // Tổng số quái cần sinh ra ở phòng này
+    [SerializeField] private List<Transform> spawnPoints;
+    [SerializeField] private List<GameObject> enemyPrefabs;
+    [SerializeField] private int totalEnemiesToSpawn = 5;
+
+    [Header("Room Status")]
+    [SerializeField] private bool isRoomCleared = true;
+    private bool isRoomActive = false;
+    private bool hasBeenVisited = false; // ĐÁNH DẤU: Phòng này đã từng được kích hoạt chiến đấu chưa?
 
     private List<GameObject> activeEnemies = new List<GameObject>();
-    private bool isRoomCleared = false;
-    private bool isRoomActive = false;
+
+    // Properties cho TeleportPortal đọc
+    public bool IsCleared => isRoomCleared;
+    public bool HasBeenVisited => hasBeenVisited; // Thêm property này
+    public RoomType CurrentRoomType => roomType;
 
     private void Start()
     {
-        // Nếu là phòng Start hoặc Exit, mở sẵn cửa và đánh dấu đã Cleared
+        SetDoorsState(false);
         if (roomType == RoomType.StartRoom || roomType == RoomType.ExitRoom)
         {
             isRoomCleared = true;
-            SetDoorsState(false); // Mở cửa
+            hasBeenVisited = true; // Phòng Start/Exit không tính là phòng combat
         }
-        else
+    }
+
+    private void Update()
+    {
+        if (isRoomActive && !isRoomCleared)
         {
-            SetDoorsState(false); // Ban đầu cửa mở để Player đi vào
+            CheckActiveEnemies();
         }
     }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        // Khi Player bước vào phòng chiến đấu chưa dọn sạch
-        if (other.CompareTag("Player") && !isRoomActive && !isRoomCleared)
+        // Khi người chơi bước vào phòng combat LẦN ĐẦU TIÊN
+        if (other.CompareTag("Player") && roomType == RoomType.CombatRoom && !hasBeenVisited)
         {
             StartCombatRoom();
         }
@@ -45,26 +57,33 @@ public class RoomController : MonoBehaviour
     private void StartCombatRoom()
     {
         isRoomActive = true;
-        SetDoorsState(true); // ĐÓNG CỬA TILEMAP LẠI
+        isRoomCleared = false;
+        hasBeenVisited = true; // Xác nhận người chơi ĐÃ VÀO VÀ ĐANG ĐÁNH ở phòng này
 
+        SetDoorsState(true);
         SpawnEnemies();
     }
 
     private void SpawnEnemies()
     {
-        if (enemyPrefabs.Count == 0 || spawnPoints.Count == 0) return;
+        if (enemyPrefabs.Count == 0 || spawnPoints.Count == 0)
+        {
+            ClearRoom();
+            return;
+        }
+
+        activeEnemies.Clear();
 
         for (int i = 0; i < totalEnemiesToSpawn; i++)
         {
-            // Lựa chọn ngẫu nhiên vị trí spawn và loại quái
             Transform spawnPoint = spawnPoints[i % spawnPoints.Count];
             GameObject randomEnemyPrefab = enemyPrefabs[Random.Range(0, enemyPrefabs.Count)];
 
-            // Sinh quái
             GameObject enemyObj = Instantiate(randomEnemyPrefab, spawnPoint.position, Quaternion.identity);
+            enemyObj.transform.parent = transform;
+            
             activeEnemies.Add(enemyObj);
 
-            // Đăng ký sự kiện khi quái chết (Dùng CharacterStats hoặc BaseCharacter)
             if (enemyObj.TryGetComponent<CharacterStats>(out var stats))
             {
                 stats.OnDeath += () => OnEnemyKilled(enemyObj);
@@ -79,7 +98,16 @@ public class RoomController : MonoBehaviour
             activeEnemies.Remove(enemy);
         }
 
-        // Khi toàn bộ quái trong phòng đã bị tiêu diệt
+        if (activeEnemies.Count == 0)
+        {
+            ClearRoom();
+        }
+    }
+
+    private void CheckActiveEnemies()
+    {
+        activeEnemies.RemoveAll(enemy => enemy == null);
+
         if (activeEnemies.Count == 0)
         {
             ClearRoom();
@@ -90,13 +118,11 @@ public class RoomController : MonoBehaviour
     {
         isRoomCleared = true;
         isRoomActive = false;
-        SetDoorsState(false); // MỞ CỬA TILEMAP RA
+        SetDoorsState(false);
 
-        // Thông báo cho LevelDungeonManager biết đã xong 1 phòng
         LevelDungeonManager.Instance?.OnRoomCleared();
     }
 
-    // Bật/Tắt Tilemap Cửa
     private void SetDoorsState(bool isClosed)
     {
         if (doorTilemapGroup != null)
@@ -107,7 +133,6 @@ public class RoomController : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        // Vẽ các điểm Spawn trong cửa sổ Scene để dễ căn chỉnh
         Gizmos.color = Color.red;
         if (spawnPoints != null)
         {
