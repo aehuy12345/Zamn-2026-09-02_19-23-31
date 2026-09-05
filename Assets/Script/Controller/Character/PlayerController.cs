@@ -1,7 +1,6 @@
 using UnityEngine;
 using Unity.Cinemachine;
 
-
 public class PlayerController : BaseCharacter
 {
     private Vector2 moveInput;
@@ -17,27 +16,23 @@ public class PlayerController : BaseCharacter
 
     private void Start()
     {
-        // Tự động gán Player làm Target cho Cinemachine Camera khi game bắt đầu
         SetupCameraFollow();
     }
 
-    private void SetupCameraFollow()
+    protected override void OnEnable()
     {
-        // Cinemachine v3
+        base.OnEnable();
+        // Mỗi khi Player được kích hoạt/hồi sinh, thiết lập lại Camera
+        SetupCameraFollow();
+    }
+
+    public void SetupCameraFollow()
+    {
         var vcam = FindAnyObjectByType<CinemachineCamera>();
         if (vcam != null)
         {
             vcam.Follow = transform;
         }
-
-        /* 
-        // Nếu dùng Cinemachine v2:
-        var vcamV2 = FindAnyObjectByType<CinemachineVirtualCamera>();
-        if (vcamV2 != null)
-        {
-            vcamV2.Follow = transform;
-        }
-        */
     }
 
     private void Update()
@@ -49,7 +44,7 @@ public class PlayerController : BaseCharacter
         HandleFlip(x);
 
         bool isMoving = moveInput.sqrMagnitude > 0;
-        animHandler.PlayMove(isMoving);
+        if (animHandler != null) animHandler.PlayMove(isMoving);
     }
 
     private void FixedUpdate()

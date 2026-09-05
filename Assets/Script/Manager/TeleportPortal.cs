@@ -23,7 +23,7 @@ public class TeleportPortal : MonoBehaviour
     {
         if (allRooms.Count == 0)
         {
-            RoomController[] foundRooms = FindObjectsByType<RoomController>(FindObjectsSortMode.None);
+            RoomController[] foundRooms = FindObjectsByType<RoomController>();
             allRooms.AddRange(foundRooms);
         }
 

@@ -122,6 +122,23 @@ public class RoomController : MonoBehaviour
 
         LevelDungeonManager.Instance?.OnRoomCleared();
     }
+    public void ResetRoomIfUncleared()
+    {
+        // Nếu phòng này người chơi chưa kịp đánh xong (chết giữa chừng)
+        if (isRoomActive && !isRoomCleared)
+        {
+            isRoomActive = false;
+            hasBeenVisited = false; // Reset lại để Player có thể vào đánh lại phòng này
+            SetDoorsState(false);   // Mở lại cửa
+
+            // Xóa hết quái dở dang còn sót lại trong phòng
+            foreach (var enemy in activeEnemies)
+            {
+                if (enemy != null) Destroy(enemy);
+            }
+            activeEnemies.Clear();
+        }
+    }
 
     private void SetDoorsState(bool isClosed)
     {

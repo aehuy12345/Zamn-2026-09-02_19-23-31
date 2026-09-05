@@ -5,8 +5,9 @@ public class CharacterStats : MonoBehaviour
 {
     [Header("Data Config")]
     [SerializeField] private CharacterStatsData statsData;
+    [SerializeField] private bool isPlayer = false; // Đánh dấu nếu Script này gắn trên Player
 
-    // Runtime variables (Giá trị thay đổi trong lúc chơi)
+    // Runtime variables
     private float currentHealth;
     private float currentShield;
     private float currentEnergy;
@@ -20,6 +21,7 @@ public class CharacterStats : MonoBehaviour
 
     public CharacterStatsData StatsData => statsData;
     public float CurrentHealth => currentHealth;
+    public float CurrentShield => currentShield;
     public float CurrentEnergy => currentEnergy;
 
     public float CurrentMoveSpeed 
@@ -53,7 +55,16 @@ public class CharacterStats : MonoBehaviour
     {
         if (statsData == null) return;
 
-        // Cập nhật UI ban đầu
+        // Nếu là Player và có dữ liệu đã lưu từ Scene trước (GamePlay Scene -> Boss Scene)
+        if (isPlayer && PlayerPersistentData.Instance != null && PlayerPersistentData.Instance.HasSavedData())
+        {
+            currentHealth = PlayerPersistentData.Instance.SavedHealth;
+            currentShield = PlayerPersistentData.Instance.SavedShield;
+            currentEnergy = PlayerPersistentData.Instance.SavedEnergy;
+            Debug.Log($"<color=green>[CharacterStats] Tải chỉ số lưu thành công: HP={currentHealth}</color>");
+        }
+
+        // Cập nhật lên UI
         OnHealthChanged?.Invoke(currentHealth, statsData.MaxHealth);
         OnShieldChanged?.Invoke(currentShield, statsData.MaxShield);
         OnEnergyChanged?.Invoke(currentEnergy, statsData.MaxEnergy);
@@ -62,6 +73,11 @@ public class CharacterStats : MonoBehaviour
     private void Update()
     {
         HandleShieldRegen();
+    }
+
+    private void HandleShieldRegen()
+    {
+
     }
 
     public void TakeDamage(float damageAmount)
@@ -86,7 +102,7 @@ public class CharacterStats : MonoBehaviour
             OnShieldChanged?.Invoke(currentShield, statsData.MaxShield);
         }
 
-        // 2. Trừ Máu (Health) nếu damage còn lại > 0
+        // 2. Trừ Máu (Health)
         if (damageAmount > 0)
         {
             currentHealth -= damageAmount;
@@ -101,7 +117,6 @@ public class CharacterStats : MonoBehaviour
         }
     }
 
-    // [BỔ SUNG] Hàm Hồi Máu cho Player/Enemy
     public void Heal(float healAmount)
     {
         if (statsData == null || currentHealth <= 0) return;
@@ -110,25 +125,76 @@ public class CharacterStats : MonoBehaviour
         OnHealthChanged?.Invoke(currentHealth, statsData.MaxHealth);
     }
 
-    // [BỔ SUNG] Logic khi hết máu
     private void Die()
     {
-        OnDeath?.Invoke(); // Báo tín hiệu về RoomController để đếm số quái còn lại
-        
-        // Tiêu diệt GameObject
-        Destroy(gameObject);
+        OnDeath?.Invoke(); 
+
+        if (isPlayer)
+        {
+            RoomController[] rooms = FindObjectsByType<RoomController>();
+            foreach (var room in rooms)
+            {
+                room.ResetRoomIfUncleared();
+            }
+
+            if (GameOverUI.Instance != null)
+            {
+                GameOverUI.Instance.ShowGameOverUI();
+            }
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
     }
 
-    private void HandleShieldRegen()
+    public void RevivePlayer()
     {
         if (statsData == null) return;
 
-        if (currentShield < statsData.MaxShield && Time.time >= lastDamageTime + statsData.ShieldRegenDelay)
+        gameObject.SetActive(true);
+
+        currentHealth = statsData.MaxHealth * 0.5f; 
+        currentShield = statsData.MaxShield;
+        currentEnergy = statsData.MaxEnergy;
+
+        SpriteRenderer[] sprites = GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (var s in sprites)
         {
-            currentShield += statsData.ShieldRegenRate * Time.deltaTime;
-            currentShield = Mathf.Min(currentShield, statsData.MaxShield);
-            OnShieldChanged?.Invoke(currentShield, statsData.MaxShield);
+            s.enabled = true;
         }
+
+        Collider2D[] colliders = GetComponentsInChildren<Collider2D>(true);
+        foreach (var c in colliders)
+        {
+            c.enabled = true;
+        }
+
+        if (TryGetComponent<Rigidbody2D>(out var rb))
+        {
+            rb.simulated = true;
+            rb.linearVelocity = Vector2.zero;
+        }
+
+        Animator anim = GetComponentInChildren<Animator>();
+        if (anim != null)
+        {
+            anim.Rebind();
+            anim.Update(0f);
+            anim.Play("Idle");
+        }
+
+        MonoBehaviour[] scripts = GetComponents<MonoBehaviour>();
+        foreach (var script in scripts)
+        {
+            script.enabled = true;
+        }
+
+        OnHealthChanged?.Invoke(currentHealth, statsData.MaxHealth);
+        OnShieldChanged?.Invoke(currentShield, statsData.MaxShield);
+        OnEnergyChanged?.Invoke(currentEnergy, statsData.MaxEnergy);
+
+        Debug.Log("<color=green>[CharacterStats] Đã hồi sinh Player thành công!</color>");
     }
 
     public bool ConsumeEnergy(float amount)
